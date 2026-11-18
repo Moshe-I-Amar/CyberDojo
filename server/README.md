@@ -193,4 +193,30 @@ All endpoints are mounted under `/api/`. Replace `:id` / `:runId` with actual ID
 
 ---
 
+## HTTP step: headers & payloads (v0.2.0)
+
+An `http` step now supports two additional fields, `headers` and `payload`.
+
+- **`headers`** — an object of header name → value sent with the request.
+- **`payload`** — a named entry from the built-in payload library (`src/core/attack/payloads.ts`) or any literal string. The resolved value replaces every `{{payload}}` token in the step's `url`, `body`, and header values.
+
+Built-in payload names: `sqlInjection`, `sqlInjectionUnion`, `sqlInjectionComment`, `xssPayload`, `xssImg`, `pathTraversal`, `commandInjection`. An unknown name is used verbatim as a custom payload. The run log records which payload was used (`Using payload: <name> (<category>)`).
+
+Example step:
+
+```json
+{
+  "type": "http",
+  "method": "POST",
+  "url": "http://localhost:8080/login?next={{payload}}",
+  "headers": { "Content-Type": "application/x-www-form-urlencoded", "X-Probe": "{{payload}}" },
+  "body": "username=admin&password={{payload}}",
+  "payload": "sqlInjection"
+}
+```
+
+> These payloads are for **authorized** training against your own isolated demo target only. Keep `ATTACK_ALLOWLIST` scoped to that target.
+
+---
+
 EOF

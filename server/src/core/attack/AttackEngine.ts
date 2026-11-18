@@ -3,6 +3,7 @@ import * as runRepo from '../../repositories/runRepository';
 import HttpExecutor from './HttpExecutor';
 import { getConfig } from '../../config/env';
 import { AttackStep, StepLog } from './types';
+import { resolvePayload, applyPayloadToken } from './payloads';
 
 type AttackConfig = ReturnType<typeof getConfig>;
 
@@ -69,7 +70,34 @@ export async function runScenario(scenario: IScenario, runId: string, mode: 'rea
         }
 
         if (step.type === 'http') {
-          const req = { method: (step.method || 'GET').toUpperCase(), url: step.url, body: step.body };
+          // Resolve an optional named/custom payload and substitute the
+          // {{payload}} token across url, body and header values. Headers are
+          // forwarded to the executor.
+          const resolved = resolvePayload(step.payload);
+          const payloadValue = resolved?.value;
+          const sub = (v: any) => (payloadValue !== undefined ? applyPayloadToken(v, payloadValue) : v);
+
+          const headers: Record<string, string> = {};
+          if (step.headers && typeof step.headers === 'object') {
+            for (const [hk, hv] of Object.entries(step.headers as Record<string, unknown>)) {
+              headers[hk] = String(sub(String(hv)));
+            }
+          }
+
+          const req = {
+            method: (step.method || 'GET').toUpperCase(),
+            url: sub(step.url),
+            body: sub(step.body),
+            headers: Object.keys(headers).length ? headers : undefined,
+          };
+
+          if (resolved) {
+            const label = resolved.known
+              ? `${step.payload} (${resolved.definition?.category})`
+              : 'custom';
+            await runRepo.appendLog(runId, makeLog(i, 'http', 'success', `Using payload: ${label}`, mode));
+          }
+
           if (!isUrlAllowed(req.url, config)) {
             await runRepo.appendLog(runId, makeLog(i, 'http', 'blocked', `Blocked by allowlist: ${req.url}`, mode));
             if (config.attackBlockBehavior === 'fail') {

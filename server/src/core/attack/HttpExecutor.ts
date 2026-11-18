@@ -3,12 +3,13 @@ import axios from 'axios';
 export class HttpExecutor {
   constructor() {}
 
-  public async execute(request: { method: string; url: string; body?: any }) {
+  public async execute(request: { method: string; url: string; body?: any; headers?: Record<string, string> }) {
     try {
       const res = await axios.request({
         method: request.method as any,
         url: request.url,
         data: request.body,
+        headers: request.headers,
         timeout: 10000,
       });
       return { status: res.status, body: typeof res.data === 'string' ? res.data : JSON.stringify(res.data) };
