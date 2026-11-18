@@ -34,7 +34,7 @@
   },
   "config": {
     "mongodbMemoryServer": {
-      "version": "7.0.14"
+      "version": "6.0.14"
     }
   }
 }

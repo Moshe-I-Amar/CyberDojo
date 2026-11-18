@@ -17,7 +17,7 @@ jobs:
     env:
       # Pin the in-memory MongoDB binary to a build linked against OpenSSL 3
       # (the old default 5.0.x needs libcrypto.so.1.1, absent on modern runners).
-      MONGOMS_VERSION: '7.0.14'
+      MONGOMS_VERSION: '6.0.14'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
