@@ -4,7 +4,7 @@ import HttpExecutor from './HttpExecutor';
 import { getConfig } from '../../config/env';
 import { AttackStep, StepLog } from './types';
 
-const config = getConfig();
+type AttackConfig = ReturnType<typeof getConfig>;
 
 function hostMatchesPattern(host: string, pattern: string): boolean {
   if (!pattern) return false;
@@ -15,7 +15,7 @@ function hostMatchesPattern(host: string, pattern: string): boolean {
   return host.toLowerCase() === pattern.toLowerCase();
 }
 
-function isUrlAllowed(targetUrl: string): boolean {
+function isUrlAllowed(targetUrl: string, config: AttackConfig): boolean {
   if (!config.allowedHosts || config.allowedHosts.length === 0) return true;
   try {
     const u = new URL(targetUrl);
@@ -36,6 +36,9 @@ function makeLog(stepIndex: number, type: string, status: StepLog['status'], mes
 
 // Executes a scenario and appends structured logs to the associated run.
 export async function runScenario(scenario: IScenario, runId: string, mode: 'real' | 'dry-run' = 'real'): Promise<void> {
+  // Read configuration at execution time (not module load) so that env changes
+  // — allowlist and block behavior — take effect per run instead of being frozen at import.
+  const config = getConfig();
   try {
     await runRepo.updateById(runId, { status: 'running', startedAt: new Date() });
 
@@ -53,8 +56,10 @@ export async function runScenario(scenario: IScenario, runId: string, mode: 'rea
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i] as any;
       try {
-        // Record execution start
-        await runRepo.appendLog(runId, makeLog(i, step.type || 'unknown', 'success', `Executing step ${i + 1}`, mode));
+        // Record execution start. Use a neutral marker type ('step') so this
+        // bookkeeping log is never mistaken for a step's semantic result when
+        // consumers filter structured logs by `type`.
+        await runRepo.appendLog(runId, makeLog(i, 'step', 'success', `Executing step ${i + 1} (${step.type || 'unknown'})`, mode));
 
         if (!step || !step.type) {
           await runRepo.appendLog(runId, makeLog(i, 'unknown', 'failed', 'Missing step type', mode));
@@ -65,7 +70,7 @@ export async function runScenario(scenario: IScenario, runId: string, mode: 'rea
 
         if (step.type === 'http') {
           const req = { method: (step.method || 'GET').toUpperCase(), url: step.url, body: step.body };
-          if (!isUrlAllowed(req.url)) {
+          if (!isUrlAllowed(req.url, config)) {
             await runRepo.appendLog(runId, makeLog(i, 'http', 'blocked', `Blocked by allowlist: ${req.url}`, mode));
             if (config.attackBlockBehavior === 'fail') {
               await runRepo.appendLog(runId, makeLog(i, 'http', 'failed', 'Run failed due to blocked step', mode));
